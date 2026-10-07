@@ -323,7 +323,8 @@ func (s *apiSrv) handlePOST(remoteAddr *net.TCPAddr, w http.ResponseWriter, req 
 	deviceID := protocol.NewDeviceID(rawCert)
 	if wait := s.announcements.account(&deviceID); wait > 0 {
 		announceRequestsTotal.WithLabelValues("limited", country).Inc()
-		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())))
+		io.Copy(io.Discard, req.Body)
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 		http.Error(w, "Chill", http.StatusTooManyRequests)
 		return
 	}
