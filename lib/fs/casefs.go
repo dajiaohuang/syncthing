@@ -461,7 +461,7 @@ func (r *defaultRealCaser) dropCache() {
 }
 
 func (r *defaultRealCaser) noteAdded(canonicalName string) {
-	r.cache.added(canonicalName)
+	r.cache.added(canonicalName, r.fs)
 }
 
 func (r *defaultRealCaser) noteRemoved(canonicalName string) {
@@ -470,7 +470,7 @@ func (r *defaultRealCaser) noteRemoved(canonicalName string) {
 
 // added updates the cached listing of name's parent directory to include
 // name, dropping any cached listing for name itself.
-func (c *caseCache) added(name string) {
+func (c *caseCache) added(name string, filesystem Filesystem) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
@@ -480,9 +480,17 @@ func (c *caseCache) added(name string) {
 
 	// Get and update parent
 
-	node, ok := c.Get(filepath.Dir(name))
+	dir := filepath.Dir(name)
+	node, ok := c.Get(dir)
 	if !ok || node.err != nil {
-		return
+		// Parent directory is not cached (e.g. was just purged by
+		// noteRemoved due to duplicate keys from normalization
+		// differences). Load the current directory listing from disk,
+		// which will include the newly added file, and cache that.
+		node = c.getExpireAdd(dir, filesystem)
+		if node.err != nil {
+			return
+		}
 	}
 
 	base := filepath.Base(name)

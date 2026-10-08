@@ -650,10 +650,12 @@ func (w *walker) applyNormalization(path, normPath string, info fs.FileInfo) (st
 			return "", err
 		}
 		if err = w.Filesystem.Rename(tempPath, normPath); err != nil {
-			// I don't ever expect this to happen, but if it does, we should probably tell our caller that the normalized
-			// path is the temp path: that way at least the user's data still gets synced.
-			slog.Error("Failed to rename while normalizating UTF8 encoding; please rename temp file manually", slog.String("from", tempPath), slog.String("to", normPath), slogutil.Error(err))
-			return tempPath, nil
+			slog.Error("Failed to rename while normalizating UTF8 encoding; rolling back", slog.String("from", tempPath), slog.String("to", normPath), slogutil.Error(err))
+			if rbErr := w.Filesystem.Rename(tempPath, path); rbErr != nil {
+				slog.Error("Failed to roll back rename after UTF8 normalization failure; please rename temp file manually", slog.String("from", tempPath), slog.String("to", path), slogutil.Error(rbErr))
+				return tempPath, nil
+			}
+			return "", err
 		}
 		return normPath, nil
 	}
